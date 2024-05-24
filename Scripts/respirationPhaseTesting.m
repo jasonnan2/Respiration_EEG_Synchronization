@@ -16,10 +16,10 @@ eeglab
 subIds = [1,3,5,6,7,9,10,11,13,14,15,16,17,18,19,20];
 count=0;
 
-id=3
+id=15
 rawFile = "A:\TwoTap\twotap"+string(id)+"\twotap"+string(id)+".xdf";
 behFile = pickfiles({"A:\TwoTap\twotap"+string(id)}, {"trial_summary.csv"});
-codeFile = pickfiles({"A:\TwoTap\twotap"+string(id)}, {".csv"},{".csv"},{'trial_summary'});
+codeFile = pickfiles({"A:\TwoTap\twotap"+string(id)}, {".csv"},{".csv"},{'trial_summary','fixed_output'});
 
 behTbl = readtable(behFile);
 codeTbl = readtable(codeFile);
@@ -71,6 +71,12 @@ for i=1:size(responseTbl,1) % go through all codes in responseTbl
         % remove that row. "i" stays the same so it will check the next row once the
         % previous one is removed
         behTbl(i,:)=[];
+
+
+        %%% Add in combining the timings
+
+
+        
     end
 end
 

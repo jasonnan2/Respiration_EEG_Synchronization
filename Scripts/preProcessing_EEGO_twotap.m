@@ -2,7 +2,7 @@
 
 
 
-function [EEGset, ProcessVars] = preProcessing_EEGO(rawFile, behFile)
+function [EEGset, ProcessVars] = preProcessing_EEGO_twotap(rawFile, behFile)
 taskname = 'twotap';
 %The alignments of interest for EEG
 indalign = [1];
@@ -61,9 +61,28 @@ for aligni = 1:length(indalign)
     catch
         behtabledata = readtable(behFile);
     end
+    
+
+    % fixing behTbl
+    codeFile = replace(behFile,'_trial_summary','');
+    codeTbl = readtable(codeFile);
+    responseTbl = codeTbl(codeTbl.code==11,:); % response generated from codes table
+    for i=1:size(responseTbl,1) % go through all codes in responseTbl
+        while abs(responseTbl.duration(i) - behtabledata.ResponseTime(i)) >5 % buffer of 5mS
+            % as long as the trial in behTbl is not the same as the response,
+            % remove that row. "i" stays the same so it will check the next row once the
+            % previous one is removed
+            behtabledata(i,:)=[];
+        end
+    end
+    % Checking if the behavior table is still dsynced by over 200 mS
+    if sum(abs(behtabledata.ResponseTime - responseTbl.duration)) >200
+        error('Check behTbl')
+    end
+
     [ProcessVars(aligni).behOutput] = two_tap.behavior_Analysis(behtabledata); %, rejTrials, EpochTrials);
     %collect different trial groups / conditions
-    [ProcessVars(aligni).trialset, ProcessVars(aligni).behtabledata] = two_tap.behavior_events(behtabledata, ProcessVars(aligni).rejTrials, ProcessVars(aligni).EpochTrials);
+    [ProcessVars(aligni).trialset, ProcessVars(aligni).behtabledata] = two_tap.behavior_events_mad(behtabledata, ProcessVars(aligni).rejTrials, ProcessVars(aligni).EpochTrials);
     
     %% Glm analysis vars
     %finding the indices of the eegepoch that belongs to a condition (here,
