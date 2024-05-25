@@ -89,15 +89,9 @@ respiration = sgolayfilt(respiration, 2, filterLen);  % Smooth the signal
 % timeSeries = timeSeries(1):0.02:timeSeries(end);
 
 
-% median(behTbl.ResponseTime)/2000
-
 dydx = gradient(respiration(:)) ./ gradient(timeSeries(:)); % calculate derivitive
 dydx = lowpass(dydx,0.9,10); % lets in breaths > 2 sec
 % dydx = sgolayfilt(dydx, 2, filterLen);  % Smooth the signal
-
-[~,~,zeroCross]=zerocrossrate(dydx);
-
-d2y = gradient(dydx(:)) ./ gradient(timeSeries(:)); % inflection point
 
 respirationPhase = angle(hilbert(respiration)); % calculate phase 
 
@@ -126,7 +120,6 @@ plot(slowTimes,dydx(sl),'b*')
 plot(attendedTimes,dydx(al),'r*')
 plot(timeSeries,zeros(size(timeSeries)),'k--')
 plot(timeSeries(zeroCross),dydx(zeroCross),'color','#D95319','marker','+','linestyle','none')
-
 ylabel('Derivative of respiration Signal')
 
 subplot(313)
@@ -137,158 +130,161 @@ plot(attendedTimes,respirationPhase(al),'r*')
 ylabel('Phase')
 plot(timeSeries,zeros(size(timeSeries)),'k--')
 
-%% Fitting perfect sinusoid
-
-% Detect start and end points of breath cycles
-
-% Segment breath cycles
-
-% Curve fitting and breath width calculation
-
-
-
 %% Single trial
 attendedTrials = find(attendedPresses);
 
 for t=1:length(attendedTrials)
-
+    toplot=1;
+   
     RT = behTbl.ResponseTime(attendedTrials(t)); % get response time from behTbl
     t1=pressedTime(attendedTrials(t)); % time stamp of button press
     t0 = t1-RT/1000;% get previous button press
-    t2 = t1+behTbl.ResponseTime(attendedTrials(t)+1)/1000; % next Button press
+%     t2 = t1+behTbl.ResponseTime(attendedTrials(t)+1)/1000; % next Button press
     [~,pb]=min(abs(timeSeries'-t0)); % index of previous button press relative to all time
     [~,cb]=min(abs(timeSeries'-t1)); % index of current button press relative to all time
-    [~,nb]=min(abs(timeSeries'-t2)); % index of current button press relative to all time
+%     [~,nb]=min(abs(timeSeries'-t2)); % index of current button press relative to all time
 
-    nextBuffer = round(RT/200); % go back half a breath
-    prevBuffer = round(RT/200); % go back half a breath
-    loc0=pb-prevBuffer;
-    loc1=cb+nextBuffer;
+    Buffer = round(RT/80); % go back half a breath
+    loc0=pb-Buffer;
+    loc1=cb+Buffer;
     timeSection = timeSeries(loc0:loc1);% get section of time stamps
-    respSection = streams{idxRespiration}.time_series(loc0:loc1);
-    derSection = dydx(loc0:loc1); % get section of derivative
-    ddy =  gradient(derSection(:)) ./ gradient(timeSection(:)); % calculate inflection point in case there is no zero crossing
-%     ddy = d2y(loc0:loc1);
+    respSection = movmean(streams{idxRespiration}.time_series(loc0:loc1),5);
+    [npeaks, peakLocs] = findpeaks(respSection,'MinPeakDistance',RT/200,'MinPeakHeight',mean(respSection)); % initial peak
+
+
+%     respSection =respiration(loc0:loc1);
+    respSection = interp1(timeSection,respSection, timeSection(1):0.02:timeSection(end));
+    timeSection = timeSection(1):0.02:timeSection(end);
 
     ft = fittype('gauss8');  % Gaussian curve fitting
     [coeffs, gof,output] = fit(timeSection', double(respSection)', ft);
-%     derSection = differentiate(coeffs,timeSection);
     obj = @(x) filloutliers(coeffs(x),'spline');
-    derSection =  gradient(obj(timeSection)) ./ gradient(timeSection(:)); % calculate inflection point in case there is no zero crossing
-    [npeaks, peakLocs] = findpeaks(coeffs(timeSection),'MinPeakDistance',RT/400); % number of peaks in signal seperated by at least 1/2 breath
+%     derSection =  gradient(obj(timeSection)) ./ gradient(timeSection(:)); % calculate inflection point in case there is no zero crossing
+    derSection = differentiate(coeffs,timeSection);
+    [npeaks, peakLocs] = findpeaks(coeffs(timeSection),'MinPeakDistance',RT/200,'MinPeakHeight',mean(respSection)); % number of peaks in signal seperated by at least 1/2 breath
     
-    
-
-
-
-
     [~,~,zeroCross]=zerocrossrate(derSection);
-    extrazeroCross = abs(derSection)<0.1;
-    zeroCross = zeroCross | extrazeroCross';
+%     extrazeroCross = abs(derSection)<0.1;
+%     zeroCross = zeroCross | extrazeroCross';
+    % Get rid of first and last points 
     if zeroCross(1)==1
-        zeroCross(1)=[];
+        zeroCross(1)=0;
+    end
+    if zeroCross(end)==1
+        zeroCross(end)=0;
     end
 
-    [~,~,ddyZero]=zerocrossrate(ddy);
-    if ddyZero(1)==1
-        ddyZero(1)=[];
-    end
-    
-    ddyZero = zeros(size(respSection));
-    [~,loc]=findpeaks(ddy,'NPeaks',20,'MinPeakHeight',0.5);
-    ddyZero(loc)=1;
-    ddyZero=logical(ddyZero);
-
-
-    
-    [~,peakLoc]=findpeaks(zeroCross*1); % finding clusters of zero crossings
-
-    % Assigning zero crossing to clusters for derivative
+    % Assigning zero crossing to clusters within 1 second of each other
     zero_crossing_idx = find(zeroCross);
     cluster_idx = ones(size(zero_crossing_idx));
     cluster_id = 1;
     for i = 2:length(zero_crossing_idx)
-        if zero_crossing_idx(i) - zero_crossing_idx(i-1) > 1
+        if zero_crossing_idx(i) - zero_crossing_idx(i-1) > 20
             cluster_id = cluster_id + 1;
         end
         cluster_idx(i) = cluster_id;
     end
-    
-    % Find the closest point to zero for each cluster
+    % Find clusters of points and takes average loc
     unique_clusters = unique(cluster_idx);
     closest_zero_idx = zeros(length(unique_clusters), 1);
     for i = 1:length(unique_clusters)
         cluster_members = zero_crossing_idx(cluster_idx == unique_clusters(i));
-        [~, min_idx] = min(abs(derSection(cluster_members)));
-        closest_zero_idx(i) = cluster_members(min_idx);
+        closest_zero_idx(i) = round(mean(cluster_members));
     end
+    [~,is_peak]=findpeaks([zeros(1,10) respSection(closest_zero_idx) zeros(1,10)]);
+    is_peak=is_peak-10;
+    isPeak = false(size(closest_zero_idx));
+    isPeak(is_peak) = true;
+    % t0:t1 range of current trial in timestamps
+
+    %%% Find the p2 p3 that are within t0 and t1
+    peakStamps = timeSection(peakLocs);
+    trialPeaks = find(peakStamps < t1 & peakStamps > t0 & npeaks'>0.8*mean(npeaks));
+    peak2 = peakStamps(trialPeaks(1));
+    peak3 = peakStamps(trialPeaks(2));
     
-    % Check if there are 5 zeros, if not, use ddy to find them
+    peakTimes = peakStamps(trialPeaks);
+    if length(trialPeaks)~=2
+        error('multiple peaks')
+    end
+    [~,closestLoc] = min(abs(timeSection(closest_zero_idx)'-peakTimes)); % time stamps of peaks and troughs from dy
+    inhalPkidx = closest_zero_idx(closestLoc); % Peak of inhalation during trial
 
-    if length(closest_zero_idx)~=5
+    %%% Find flanker peaks p1 and p4
 
+%     trialPeaks = find((peakStamps > t1 | peakStamps < t0) & npeaks'>0.8*mean(npeaks));
+    trialPeaks = [trialPeaks(1)-1 trialPeaks(2)+1];
+
+    peak1 = peakStamps(trialPeaks(1));
+    peak4 = peakStamps(trialPeaks(2));
+    flankerPeaks = peakStamps(trialPeaks);
+    if length(flankerPeaks)~=2
+        error('wrong number of peaks')
+    end
+    [~,closestLoc] = min(abs(timeSection(closest_zero_idx)'-flankerPeaks)); % time stamps of peaks and troughs from dy
+    flankerPkidx = closest_zero_idx(closestLoc); % Peak of inhalation during trial
+
+    %%% Finding troughs between flanker peaks
+    pks4 = sort([inhalPkidx ;flankerPkidx]);
+
+    troughIdx = closest_zero_idx(closest_zero_idx > flankerPkidx(1) & ...
+        closest_zero_idx < flankerPkidx(2) & ~ismember(closest_zero_idx,inhalPkidx));
+    troughIdx = average_troughs(troughIdx, pks4);
+
+    %%% Finding troughs outisde of flanker breaths closest one to flanker
+    d1 = troughIdx(1)-flankerPkidx(1); % distance from flanker to trough
+    d2 = flankerPkidx(2)-troughIdx(2); % other distance
+
+    searchLim1 = round(flankerPkidx(1) - 1.5*d1); % make symmetrical and go back 20% further
+    searchLim2 = round(flankerPkidx(2) + 1.5*d2); % make other side symmetrical 
+
+    lastPeak = find(isPeak,1,'last');
+    while lastPeak - closestLoc(2) > 2
+        lastPeak =lastPeak-2;
+    end
+    if closest_zero_idx(lastPeak) == flankerPkidx(2)
+        lastPeak = inf;
+    end
+    firstPeak = find(isPeak,1,'first');
+    while closestLoc(1) - firstPeak > 2
+        firstPeak =firstPeak+2;
     end
 
+    if closest_zero_idx(firstPeak) == flankerPkidx(1)
+        firstPeak = -inf;
+    end
 
-%     respSection= respSection-mean(respSection);
-%     toppeaks=maxk(respSection,2);
-%     lowpeaks= maxk(-respSection,2);'
-%     high_data=respSection>mean(toppeaks)*0.1;
-%     low_data=respSection<mean(-lowpeaks)*.9;
-
-
-%     close all
-%     figure
-    clf
-
-
-   
-%     hold on
-%     plot(high_data,'linewidth',2,'color','b')
-%     plot(low_data,'r--','linewidth',2)
-%     hold on
-%     yyaxis right
-%     plot(respSection,'k')
-%     [onsets,offsets] = breathTimes(double(respSection),10)
-%     findchangepts(respSection,'MaxNumChanges',5,'MinDistance',5,'Statistic','mean','min')
-%     pulsewidth(double(respSection),timeSection)
-% 
-    hold on
-    % fitted data plots
-    plot(timeSection,respSection,'LineWidth',3)
-%     plot(timeSection, obj(timeSection)) % grubbs cleaned sig
-
-    plot(timeSection,coeffs(timeSection)) % raw fit
-
-
-%     plot(timeSection,movmean(respSection,5),'LineWidth',3)
-%     plot(timeSection,derSection,'LineWidth',1.5)
-%     plot(timeSection,ddy,'LineWidth',1.5,'color','r')
-% 
-    plot(t1,streams{idxRespiration}.time_series(cb),'b*','markersize',10,'LineWidth',3)
-    plot(t0,streams{idxRespiration}.time_series(pb),'b*','markersize',10,'LineWidth',3)
-%     plot(timeSection,zeros(size(timeSection)),'k--')
-% %     yyaxis right
-%     hold on
-% %     plot(timeSection(zeroCross),derSection(zeroCross),'color','#D95319','marker','+','linestyle','none')
-% %     yyaxis right 
-% %     hold on
-%     plot(timeSection,zeros(size(timeSection)),'k--')
-%     plot(timeSection(ddyZero),respSection(ddyZero),'color','k','marker','+','linestyle','none','markersize',20,'LineWidth',3)
-    plot(timeSection(closest_zero_idx),respSection(closest_zero_idx),'color','#D95319','marker','+','linestyle','none','markersize',20,'LineWidth',3)
-    plot(timeSection(peakLocs), respSection(peakLocs),'r*','markersize',20)
-%     legend('Respiration','dy','d2y','','','','','inflection point','peaks')
-
-    waitforbuttonpress
-%     RT(t) = t1-t0;
-%     
+    firstTrough = find(closest_zero_idx > searchLim1 & closest_zero_idx< flankerPkidx(1) & ~isPeak);
+    firstTrough = closest_zero_idx(firstTrough(firstTrough>firstPeak));
+    lastTrough = find(closest_zero_idx < searchLim2 & closest_zero_idx> flankerPkidx(2)& ~isPeak);
+    lastTrough =closest_zero_idx(lastTrough(lastTrough<lastPeak));
+    if length(firstTrough)~=1 | length(lastTrough)~=1
+        errCd = 'outside bounds not found';
+        toplot=1;
+    end
+    if toplot
+        clf
+        hold on
+        % fitted data plots
+        plot(timeSection,respSection,'LineWidth',3)
+        plot(timeSection,coeffs(timeSection)) % raw fit
+    
+        plot(t1,streams{idxRespiration}.time_series(cb),'b*','markersize',10,'LineWidth',3) % end of trial
+        plot(t0,streams{idxRespiration}.time_series(pb),'b*','markersize',10,'LineWidth',3)  % start of trial
+    
+        plot(timeSection(inhalPkidx),respSection(inhalPkidx),'color','#D95319','marker','+','linestyle','none','markersize',20,'LineWidth',3) % peaks during trial
+        plot(timeSection(flankerPkidx),respSection(flankerPkidx),'color','g','marker','+','linestyle','none','markersize',20,'LineWidth',3) % peaks during trial
+        plot(timeSection(troughIdx),respSection(troughIdx),'color','m','marker','+','linestyle','none','markersize',20,'LineWidth',3) % peaks during trial
+%         plot(timeSection(closest_zero_idx),respSection(closest_zero_idx),'color','k','marker','+','linestyle','none','markersize',10,'LineWidth',3) % peaks during trial
+        plot(timeSection(lastTrough),respSection(lastTrough),'color','r','marker','+','linestyle','none','markersize',20,'LineWidth',3) % peaks during trial
+        plot(timeSection(firstTrough),respSection(firstTrough),'color','r','marker','+','linestyle','none','markersize',20,'LineWidth',3) % peaks during trial
+        waitforbuttonpress
+    end
 end
 
 
 %% Entire signal fit
 
-obj = @(x) filloutliers(coeffs(x),'spline');
-plot(timeSection, obj(timeSection))
 %% Phase anlaysis
 figure
 [~,loc]=min(abs(timeSeries'-pressedTime));
