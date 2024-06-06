@@ -17,7 +17,6 @@ subIds = [1,3,5,6,7,9,10,11,13,14,15,16,17,18,19,20];
 count=0;
 
 for id = 1
-    count=count+1;
 
     rawFile = "A:\TwoTap\rawData\twotap"+string(id)+"\twotap"+string(id)+".xdf";
     behFile = pickfiles({"A:\TwoTap\rawData\twotap"+string(id)}, {"trial_summary.csv"});
@@ -67,9 +66,11 @@ for id = 1
     [~,loc]=min(abs(timeSeries'-pressedTime));
     slowAngles=respirationPhase(loc(slowPresses));
     fastAngles=respirationPhase(loc(attendedPresses));
-    avgFast(count) = circ_mean(fastAngles'); % save phase data
-    avgSlow(count) = circ_mean(slowAngles'); % save phase data
+%     pval(id) = circ_wwtest(fastAngles,slowAngles); % ttest between slow and fast angles
+    avgFast(id) = circ_mean(fastAngles');
+    avgSlow(id) = circ_mean(slowAngles');
     %%%
+
 
     % Plotting respiration data
     pressesLoc = find(markers==11); % all button presses
@@ -150,7 +151,6 @@ for id = 1
             peakTimes = peakStamps(trialPeaks);
             if length(trialPeaks)~=2
 %                 error('multiple peaks')
-                toplot=1;
             end
             [~,closestLoc] = min(abs(timeSection(closest_zero_idx)'-peakTimes)); % time stamps of peaks and troughs from dy
             inhalPkidx = closest_zero_idx(closestLoc); % Peak of inhalation during trial
@@ -164,7 +164,7 @@ for id = 1
             peak4 = peakStamps(trialPeaks(2));
             flankerPeaks = peakStamps(trialPeaks);
             if length(flankerPeaks)~=2
-                toplot =1;
+%                 error('wrong number of peaks')
             end
             [~,closestLoc] = min(abs(timeSection(closest_zero_idx)'-flankerPeaks)); % time stamps of peaks and troughs from dy
             flankerPkidx = closest_zero_idx(closestLoc); % Peak of inhalation during trial
