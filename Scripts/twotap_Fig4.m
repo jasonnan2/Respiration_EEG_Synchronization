@@ -120,7 +120,7 @@ for a = 1:3
     end
 end
 
-% organizing resting data into temporal epochs for analysis.
+%% organizing resting data into temporal epochs for analysis.
 
 trest=-3996:4:0;
 
@@ -141,8 +141,6 @@ for a = 1:3%2
     end
 end 
 
-
-    
 %% Freq x Freq correlations
 win=250;
 %[H,P,ADSTAT,CV] = adtest(f(2).netlots(:))
@@ -430,33 +428,49 @@ writetable(T, sfile, 'sheet','pDMN_netConn')
 close all
 figure
 
+% subplot(131)
+% data = reshape(nanmean(ya,1),[2,3]);
+% sem = reshape(nanstd(ya,[],1),[2,3])/sqrt(324);
+% plotErrBar(data',sem',{'white','k'})
+% set(gca,'xticklabels',{'Dist', 'Atten','Rest'},'fontweight','bold','fontsize',16,'xticklabelrotation',90)
+% title('aDMN')
+% ylim([0 0.6])
+% % legend('Distracted Trials','Attended Trials','box','off','location','northwest')
+% % set(gca,'XGrid','off','YGrid','on','Position',[0.1300 0.1100 0.7750 0.8121])
+% 
+% 
+% subplot(132)
+% data = reshape(nanmean(ym,1),[2,3]);
+% sem = reshape(nanstd(ym,[],1),[2,3])/sqrt(324);
+% plotErrBar(data',sem',{'white','k'})
+% set(gca,'xticklabels',{'Dist', 'Atten','Rest'},'fontweight','bold','fontsize',16,'xticklabelrotation',90)
+% title('mtDMN')
+% ylim([0 0.6])
+
+
+% subplot(133)
 subplot(131)
-data = reshape(nanmean(ya,1),[2,3]);
-sem = reshape(nanstd(ya,[],1),[2,3])/sqrt(324);
-plotErrBar(data',sem',{'white','k'})
-set(gca,'xticklabels',{'Dist', 'Atten','Rest'},'fontweight','bold','fontsize',16,'xticklabelrotation',90)
-title('aDMN')
-ylim([0 0.6])
-% legend('Distracted Trials','Attended Trials','box','off','location','northwest')
-% set(gca,'XGrid','off','YGrid','on','Position',[0.1300 0.1100 0.7750 0.8121])
-
-
-subplot(132)
-data = reshape(nanmean(ym,1),[2,3]);
-sem = reshape(nanstd(ym,[],1),[2,3])/sqrt(324);
-plotErrBar(data',sem',{'white','k'})
-set(gca,'xticklabels',{'Dist', 'Atten','Rest'},'fontweight','bold','fontsize',16,'xticklabelrotation',90)
-title('mtDMN')
-ylim([0 0.6])
-
-
-subplot(133)
+hold on
 data = reshape(nanmean(yp,1),[2,3]);
 sem = reshape(nanstd(yp,[],1),[2,3])/sqrt(324);
-plotErrBar(data',sem',{'white','k'})
-set(gca,'xticklabels',{'Dist', 'Atten','Rest'},'fontweight','bold','fontsize',16,'xticklabelrotation',90)
-title('pDMN')
-ylim([0 0.6])
+% plotErrBar(data',sem',{'white','k'})
+allFPN = reshape(yp(:,[1,3,5]),[],1);
+allCON = reshape(yp(:,[2,4,6]),[],1);
+netOrder =(repmat(reshape(repmat([1:3],[324],1),[],1),2,1));
+netOrder = categorical(arrayfun(@num2str, netOrder, 'UniformOutput', 0));
+bbb=boxchart(netOrder, [allFPN;allCON],'GroupByColor',[ones(1,324*3), 2*ones(1,324*3)]','MarkerStyle','none')
+
+x = repmat(1:3,324,1)-0.25;
+x=reshape(x,[],1);
+swarmchart(x,[allFPN],20,'.','XJitterWidth',0.1,'MarkerEdgeColor',[0 0.4470 0.7410]);
+x = repmat(1:3,324,1)+0.25;
+x=reshape(x,[],1);
+swarmchart(x,[allCON],20,'.','XJitterWidth',0.1,'MarkerEdgeColor',[0.8500 0.3250 0.0980]);
+% ylim([-0.0001 0.018])
+legend('Low Cons','High Cons','box','off','location','northwest','box','off')
+set(gca,'xticklabels',{'Dist', 'Atten','Rest'},'xticklabelrotation',90)
+% title('pDMN')
+% ylim([0 0.6])
 legend('FPN','CON')
 set(gcf, 'position', [821.6667 567.6667 766.0000 298])
 % saveas(gcf,[savePath '\Fig4a.tiff']);
@@ -464,65 +478,65 @@ set(gcf, 'position', [821.6667 567.6667 766.0000 298])
 %panel 1
 
 % y = aDMNnetlocorrm(:,6:7);
-y1= aDMNnetlocorrm(:,7); % alpha CON
-x1 = f(2).netlo(:,3); % aDMN 
-y1=filloutliers(y1,nan);
-x1=filloutliers(x1,nan);
-[Act_conn_corr1,Act_conn_corrp1]=corr(x1,y1,'Type','Spearman','Rows','pairwise')
-close all
+% y1= aDMNnetlocorrm(:,7); % alpha CON
+% x1 = f(2).netlo(:,3); % aDMN 
+% y1=filloutliers(y1,nan);
+% x1=filloutliers(x1,nan);
+% [Act_conn_corr1,Act_conn_corrp1]=corr(x1,y1,'Type','Spearman','Rows','pairwise')
+% close all
 
 % Create figure
-subplot(131)
-% figure1 = figure('Position',[1200 900 180 125]);
-mdl = fitlm(y1,x1,'linear','RobustOpts','on')
-plot1=plot(mdl,'MarkerSize',7,'Marker','.','MarkerEdgeColor',[0    0.4470    0.7410]);
-
-set(plot1(2),'LineStyle','-','LineWidth',1);
-set(plot1(3),'LineStyle',':','LineWidth',2);
-set(plot1(4),'LineStyle',':','LineWidth',2);
-% ylim([-0.02 0.02])
-box off
-legend('off')
-title ('')
-xlabel('aDMN-CON conn');
-ylabel('aDMN activity');
-title("r=" + string(round(Act_conn_corr1,2)) + "; p=" + string(round(Act_conn_corrp1,3)))
+% subplot(131)
+% % figure1 = figure('Position',[1200 900 180 125]);
+% mdl = fitlm(y1,x1,'linear','RobustOpts','on')
+% plot1=plot(mdl,'MarkerSize',7,'Marker','.','MarkerEdgeColor',[0    0.4470    0.7410]);
+% 
+% set(plot1(2),'LineStyle','-','LineWidth',1);
+% set(plot1(3),'LineStyle',':','LineWidth',2);
+% set(plot1(4),'LineStyle',':','LineWidth',2);
+% % ylim([-0.02 0.02])
+% box off
+% legend('off')
+% title ('')
+% xlabel('aDMN-CON conn');
+% ylabel('aDMN activity');
+% title("r=" + string(round(Act_conn_corr1,2)) + "; p=" + string(round(Act_conn_corrp1,3)))
 
 % panel 2 mtDMN
-% y = mtDMNnetlocorrm(:,6:7);
-y2 = mtDMNnetlocorrm(:,7);
-x2 = f(2).netlo(:,5);
-y2=filloutliers(y2,nan);
-x2=filloutliers(x2,nan);
-[Act_conn_corr3,Act_conn_corrp3]=corr(x2,y2,'Type','Spearman','Rows','pairwise');
-%[~,~,~,Act_conn_corrp3]=fdr_bh(Act_conn_corrp3)
-% figure1 = figure('Position',[1200 900 180 125]);
-subplot(132)
-mdl2 = fitlm(y2,x2,'linear','RobustOpts','on')
-plot1=plot(mdl2,'MarkerSize',7,'Marker','.','MarkerEdgeColor',[0    0.4470    0.7410]);
-
-set(plot1(2),'LineStyle','-','LineWidth',1);
-set(plot1(3),'LineStyle',':','LineWidth',2);
-set(plot1(4),'LineStyle',':','LineWidth',2);
-box off
-legend('off')
-title ('')
-ylabel('mtDMN activity');
-xlabel('mtDMN-CON conn');
-title("r=" + string(round(Act_conn_corr3,2)) + "; p=" + string(round(Act_conn_corrp3,3)))
+% % y = mtDMNnetlocorrm(:,6:7);
+% y2 = mtDMNnetlocorrm(:,7);
+% x2 = f(2).netlo(:,5);
+% y2=filloutliers(y2,nan);
+% x2=filloutliers(x2,nan);
+% [Act_conn_corr3,Act_conn_corrp3]=corr(x2,y2,'Type','Spearman','Rows','pairwise');
+% %[~,~,~,Act_conn_corrp3]=fdr_bh(Act_conn_corrp3)
+% % figure1 = figure('Position',[1200 900 180 125]);
+% subplot(132)
+% mdl2 = fitlm(y2,x2,'linear','RobustOpts','on')
+% plot1=plot(mdl2,'MarkerSize',7,'Marker','.','MarkerEdgeColor',[0    0.4470    0.7410]);
+% 
+% set(plot1(2),'LineStyle','-','LineWidth',1);
+% set(plot1(3),'LineStyle',':','LineWidth',2);
+% set(plot1(4),'LineStyle',':','LineWidth',2);
+% box off
+% legend('off')
+% title ('')
+% ylabel('mtDMN activity');
+% xlabel('mtDMN-CON conn');
+% title("r=" + string(round(Act_conn_corr3,2)) + "; p=" + string(round(Act_conn_corrp3,3)))
 
 % panel 3 pDMN
-clc
+
 % y = pDMNnetlocorrm(:,6:7);
-y3= pDMNnetlocorrm(:,6);
-x3 = f(2).netlo(:,4);
-y3=filloutliers(y3,nan);
-x3=filloutliers(x3,nan);
-[Act_conn_corr2,Act_conn_corrp2]=corr(x3,y3,'Type','Spearman','Rows','pairwise');
+x3= pDMNnetlocorrm(:,7);
+y3 = f(2).netlo(:,4);
+% y3=filloutliers(y3,nan);
+% x3=filloutliers(x3,nan);
+[Act_conn_corr2,Act_conn_corrp2]=corr(x3,y3,'Type','Spearman','Rows','pairwise')
 
 % Create figure
 % figure1 = figure('Position',[1200 900 180 125]);
-subplot(133)
+subplot(224)
 mdl3 = fitlm(y3,x3,'linear','RobustOpts','on')
 plot1=plot(mdl3,'MarkerSize',7,'Marker','.','MarkerEdgeColor',[0    0.4470    0.7410]);
 
@@ -532,30 +546,30 @@ set(plot1(4),'LineStyle',':','LineWidth',2);
 box off
 legend('off')
 title ('')
-ylabel('pDMN activity');
-xlabel('pDMN-FPN conn');
-title("r=" + string(round(Act_conn_corr2,2)) + "; p=" + string(round(Act_conn_corrp2,3)))
+xlabel('pDMN activity');
+ylabel('pDMN-CON conn');
+% title("r=" + string(round(Act_conn_corr2,2)) + "; p=" + string(round(Act_conn_corrp2,3)))
 
 
 %% Fig 3D Activity Conn correlation
 clc
-y = aDMNnethicorrm(:,6:7);
-x1 = f(2).nethi(:,3);
+y = aDMNnetlocorrm(:,6:7);
+x1 = f(2).netlo(:,3);
 % x1=filloutliers(x1,nan);
 % y=filloutliers(y,nan);
 na = sum(~isnan(y) & ~isnan(x1));
 [Act_conn_corr1b,Act_conn_corrp1b]=corr(x1,y,'Type','Spearman','Rows','pairwise');
 
-y = pDMNnethicorrm(:,6:7);
-x2 = f(2).nethi(:,4);
+y = pDMNnetlocorrm(:,6:7);
+x2 = f(2).netlo(:,4);
 % x2=filloutliers(x2,nan);
 % y=filloutliers(y,nan);
 np = sum(~isnan(y) & ~isnan(x2));
 
 [Act_conn_corr2b,Act_conn_corrp2b]=corr(x2,y,'Type','Spearman','Rows','pairwise');
 
-y = mtDMNnethicorrm(:,6:7);
-x3 = f(2).nethi(:,5);
+y = mtDMNnetlocorrm(:,6:7);
+x3 = f(2).netlo(:,5);
 % x3=filloutliers(x3,nan);
 % y=filloutliers(y,nan);
 nm = sum(~isnan(y) & ~isnan(x3));
@@ -566,9 +580,9 @@ nm = sum(~isnan(y) & ~isnan(x3));
 savePath = 'A:\TwoTap\Manuscript\Figure';
 sfile=[savePath '\tempData4Sec.xlsx'];
 
-allRhoHi = [ Act_conn_corr1b;Act_conn_corr3b;Act_conn_corr2b];
-allPHi = [Act_conn_corrp1b; Act_conn_corrp3b;Act_conn_corrp2b];
-allNhi = [na; nm ;np];
+allRhoLo = [ Act_conn_corr1b;Act_conn_corr3b;Act_conn_corr2b];
+allPLo = [Act_conn_corrp1b; Act_conn_corrp3b;Act_conn_corrp2b];
+allNlo = [na; nm ;np];
 
 % writetable(array2table(allRhoHi),sfile,'Sheet','ActNetCorr','WriteVariableNames',false, 'Range','B3')
 % writetable(array2table(allPHi),sfile,'Sheet','ActNetCorr','WriteVariableNames',false, 'Range','B10')
@@ -601,46 +615,47 @@ nm = sum(~isnan(y) & ~isnan(x3));
 allRhoRest = [ Act_conn_corr1r;Act_conn_corr3r;Act_conn_corr2r];
 allPRest = [Act_conn_corrp1r; Act_conn_corrp3r;Act_conn_corrp2r];
 allNRest = [na; nm; np];
-writetable(array2table(allRhoRest),sfile,'Sheet','ActNetCorr','WriteVariableNames',false, 'Range','J3')
-writetable(array2table(allPRest),sfile,'Sheet','ActNetCorr','WriteVariableNames',false, 'Range','J10')
+% writetable(array2table(allRhoRest),sfile,'Sheet','ActNetCorr','WriteVariableNames',false, 'Range','J3')
+% writetable(array2table(allPRest),sfile,'Sheet','ActNetCorr','WriteVariableNames',false, 'Range','J10')
 
 
 %% Plot activity vs network Conn
-close all
+% close all
 bigData = cat(3,allRhoLo,allRhoHi,allRhoRest);
 bigData = permute(bigData,[3,2,1]);
 
 bigN = cat(3,allNlo,allNhi,allNRest);
 bigN = permute(bigN,[3,2,1]);
 
-subplot(131)
-data=squeeze(bigData(:,:,1));
-sem=zeros(size(data));
-plotErrBar(data,sem,{'w';'k'})
-set(gca,'xticklabels',{'Dist', 'Atten','Rest'},'fontweight','bold','fontsize',16,'xticklabelrotation',90)
-title('aDMN')
-ylim([-0.35 0.15])
+% subplot(131)
+% data=squeeze(bigData(:,:,1));
+% sem=zeros(size(data));
+% plotErrBar(data,sem,{'w';'k'})
+% set(gca,'xticklabels',{'Dist', 'Atten','Rest'},'fontweight','bold','fontsize',16,'xticklabelrotation',90)
+% title('aDMN')
+% ylim([-0.35 0.15])
 
-subplot(132)
-data=squeeze(bigData(:,:,2));
-sem=zeros(size(data));
-plotErrBar(data,sem,{'w';'k'})
-set(gca,'xticklabels',{'Dist', 'Atten','Rest'},'fontweight','bold','fontsize',16,'xticklabelrotation',90)
-title('mtDMN')
-ylim([-0.35 0.15])
+% subplot(132)
+% data=squeeze(bigData(:,:,2));
+% sem=zeros(size(data));
+% plotErrBar(data,sem,{'w';'k'})
+% set(gca,'xticklabels',{'Dist', 'Atten','Rest'},'fontweight','bold','fontsize',16,'xticklabelrotation',90)
+% title('mtDMN')
+% ylim([-0.35 0.15])
 
-subplot(133)
-data=squeeze(bigData(:,:,3));
+subplot(223)
+data=squeeze(bigData(:,2,3));
 sem=zeros(size(data));
-plotErrBar(data,sem,{'w';'k'})
-set(gca,'xticklabels',{'Dist', 'Atten','Rest'},'fontweight','bold','fontsize',16,'xticklabelrotation',90)
-title('pDMN')
+plotErrBar(data,sem,{'k'})
+set(gca,'Xtick',[1:3],'xticklabels',{'Dist', 'Atten','Rest'},'xticklabelrotation',90)
+% title('pDMN')
 ylim([-0.35 0.15])
-
-legend('FPN-Connectivity','CON-Connectivity')
-sgtitle('Network activity corr with network connectivity')
+xlim([-0.2 4.2])
+title('CON-Connectivity')
+% sgtitle('Network activity corr with network connectivity')
 set(gcf, 'position', [663 313.6667 1.1987e+03 710.6667])
-saveas(gcf,[savePath '\Fig4corrBar.tiff']);
+box off
+% saveas(gcf,[savePath '\Fig4corrBar.tiff']);
 
 %% Dunn and Clarkfs fisher z transform
 
@@ -669,13 +684,14 @@ p1 = compare_correlation_coefficients(rr,r2,nr,n2);
 p2 = compare_correlation_coefficients(r1,rr,n1,nr);
 newP = fdr([p1 p2])
 
-%%% pDMN
-r1 = bigData(1,1,3); % distracted, FPN, aDMN 
-r2 = bigData(2,1,3); % attended, FPN, aDMN 
-rr = bigData(3,1,3); % rest, FPN, aDMN 
-n1 = bigN(1,1,3); % distracted, FPN, aDMN 
-n2 = bigN(2,1,3); % attended, FPN, aDMN 
-nr = bigN(3,1,3); % rest, FPN, aDMN 
+%% pDMN
+clc
+r1 = bigData(1,2,3); % distracted, FPN, pDMN 
+r2 = bigData(2,2,3); % attended, FPN, pDMN 
+rr = bigData(3,2,3); % rest, FPN, pDMN 
+n1 = bigN(1,2,3); % distracted, FPN, pDMN 
+n2 = bigN(2,2,3); % attended, FPN, pDMN 
+nr = bigN(3,2,3); % rest, FPN, pDMN 
 p1 = compare_correlation_coefficients(rr,r2,nr,n2);
 p2 = compare_correlation_coefficients(r1,rr,n1,nr);
 newP = fdr([p1 p2])

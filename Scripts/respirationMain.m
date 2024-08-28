@@ -15,8 +15,8 @@ eeglab
 % id: 18 - error isn't normal behavior - user paused
 subIds = [1,3,5,6,7,9,10,11,13,14,15,16,17,18,19,20];
 count=0;
-
-for id = 1
+avgFast = []; avgSlow=[];consistency=[];
+for id = subIds
     count=count+1;
 
     rawFile = "A:\TwoTap\rawData\twotap"+string(id)+"\twotap"+string(id)+".xdf";
@@ -31,7 +31,12 @@ for id = 1
     % Behavior Variables
     med = median(behTbl.ResponseTime);
     singleBreath=med/2;
-    madRT = mad(behTbl.ResponseTime);
+    madRT = mad(behTbl.ResponseTime,1);
+    COV_m = mean(behTbl.ResponseTime(behTbl.ResponseTime> 0));
+    COV_sd = std(behTbl.ResponseTime(behTbl.ResponseTime>0));
+    consistency(count) = (1-(COV_sd / COV_m));
+    respRate(count)=med;
+
     
     attendedPresses = behTbl.Accuracy==1 & behTbl.ResponseTime<med+madRT & behTbl.ResponseTime>med-madRT;
     slowPresses = behTbl.Accuracy==1 & behTbl.ResponseTime>med+madRT;
@@ -61,7 +66,15 @@ for id = 1
     
     dydx = gradient(respiration(:)) ./ gradient(timeSeries(:)); % calculate derivitive
     dydx = lowpass(dydx,0.9,10); % lets in breaths > 2 sec
-    
+
+    % Getting Button presses
+    pressesLoc = find(markers==11); % all button presses
+    pressedTime=markersTime(pressesLoc);
+    slowTimes = pressedTime(slowPresses);
+    attendedTimes = pressedTime(attendedPresses);
+    [sm,sl]=min(abs(timeSeries-slowTimes')');
+    [am,al]=min(abs(timeSeries-attendedTimes')');
+
     %%% Phase Stuff 
     respirationPhase = angle(hilbert(respiration)); % calculate phase 
     [~,loc]=min(abs(timeSeries'-pressedTime));
@@ -71,188 +84,342 @@ for id = 1
     avgSlow(count) = circ_mean(slowAngles'); % save phase data
     %%%
 
-    % Plotting respiration data
-    pressesLoc = find(markers==11); % all button presses
-    pressedTime=markersTime(pressesLoc);
-    slowTimes = pressedTime(slowPresses);
-    attendedTimes = pressedTime(attendedPresses);
-    [sm,sl]=min(abs(timeSeries-slowTimes')');
-    [am,al]=min(abs(timeSeries-attendedTimes')');
-
     % Single trial
     attendedTrials = find(attendedPresses);
     distractedTrials = find(slowPresses);
 
-    discardedTrials=0;
-    for t=1:length(attendedTrials)
-        toplot=1;
-        try
-            RT = behTbl.ResponseTime(attendedTrials(t)); % get response time from behTbl
-            t1=pressedTime(attendedTrials(t)); % time stamp of button press
-            t0 = t1-RT/1000;% get previous button press
-            [~,pb]=min(abs(timeSeries'-t0)); % index of previous button press relative to all time
-            [~,cb]=min(abs(timeSeries'-t1)); % index of current button press relative to all time
-        
-            Buffer = round(RT/80); % go back half a breath
-            loc0=pb-Buffer;
-            loc1=cb+Buffer;
-            timeSection = timeSeries(loc0:loc1);% get section of time stamps
-            respSection = movmean(streams{idxRespiration}.time_series(loc0:loc1),10);
-            [npeaks, peakLocs] = findpeaks(respSection,'MinPeakDistance',RT/200); % initial peak
-        
-            respSection = interp1(timeSection,respSection, timeSection(1):0.02:timeSection(end));
-            timeSection = timeSection(1):0.02:timeSection(end);
-        
-            ft = fittype('gauss8');  % Gaussian curve fitting
-            [coeffs, gof,output] = fit(timeSection', double(respSection)', ft);
-            obj = @(x) filloutliers(coeffs(x),'spline');
-            derSection = differentiate(coeffs,timeSection);
-            [npeaks, peakLocs] = findpeaks(coeffs(timeSection),'MinPeakDistance',RT/200,'MinPeakHeight',mean(respSection)); % number of peaks in signal seperated by at least 1/2 breath
-            
-            [~,~,zeroCross]=zerocrossrate(derSection);
-            % Get rid of first and last points 
-            if zeroCross(1)==1
-                zeroCross(1)=0;
-            end
-            if zeroCross(end)==1
-                zeroCross(end)=0;
-            end
-        
-            % Assigning zero crossing to clusters within 1 second of each other
-            zero_crossing_idx = find(zeroCross);
-            cluster_idx = ones(size(zero_crossing_idx));
-            cluster_id = 1;
-            for i = 2:length(zero_crossing_idx)
-                if zero_crossing_idx(i) - zero_crossing_idx(i-1) > 20
-                    cluster_id = cluster_id + 1;
-                end
-                cluster_idx(i) = cluster_id;
-            end
-            % Find clusters of points and takes average loc
-            unique_clusters = unique(cluster_idx);
-            closest_zero_idx = zeros(length(unique_clusters), 1);
-            for i = 1:length(unique_clusters)
-                cluster_members = zero_crossing_idx(cluster_idx == unique_clusters(i));
-                closest_zero_idx(i) = round(mean(cluster_members));
-            end
-            [~,is_peak]=findpeaks([zeros(1,10) respSection(closest_zero_idx) zeros(1,10)]);
-            is_peak=is_peak-10;
-            isPeak = false(size(closest_zero_idx));
-            isPeak(is_peak) = true;
-            % t0:t1 range of current trial in timestamps
-        
-            %%% Find the p2 p3 that are within t0 and t1
-            peakStamps = timeSection(peakLocs);
-            trialPeaks = find(peakStamps < t1 & peakStamps > t0 & npeaks'>0.8*mean(npeaks));
-            peak2 = peakStamps(trialPeaks(1));
-            peak3 = peakStamps(trialPeaks(2));
-            
-            peakTimes = peakStamps(trialPeaks);
-            if length(trialPeaks)~=2
-%                 error('multiple peaks')
-                toplot=1;
-            end
-            [~,closestLoc] = min(abs(timeSection(closest_zero_idx)'-peakTimes)); % time stamps of peaks and troughs from dy
-            inhalPkidx = closest_zero_idx(closestLoc); % Peak of inhalation during trial
-        
-            %%% Find flanker peaks p1 and p4
-        
-        %     trialPeaks = find((peakStamps > t1 | peakStamps < t0) & npeaks'>0.8*mean(npeaks));
-            trialPeaks = [trialPeaks(1)-1 trialPeaks(2)+1];
-        
-            peak1 = peakStamps(trialPeaks(1));
-            peak4 = peakStamps(trialPeaks(2));
-            flankerPeaks = peakStamps(trialPeaks);
-            if length(flankerPeaks)~=2
-                toplot =1;
-            end
-            [~,closestLoc] = min(abs(timeSection(closest_zero_idx)'-flankerPeaks)); % time stamps of peaks and troughs from dy
-            flankerPkidx = closest_zero_idx(closestLoc); % Peak of inhalation during trial
-        
-            %%% Finding troughs between flanker peaks
-            pks4 = sort([inhalPkidx ;flankerPkidx]);
-        
-            troughIdx = closest_zero_idx(closest_zero_idx > flankerPkidx(1) & ...
-                closest_zero_idx < flankerPkidx(2) & ~ismember(closest_zero_idx,inhalPkidx));
-            troughIdx = average_troughs(troughIdx, pks4);
-        
-            %%% Finding troughs outisde of flanker breaths closest one to flanker
-            d1 = troughIdx(1)-flankerPkidx(1); % distance from flanker to trough
-            d2 = flankerPkidx(2)-troughIdx(2); % other distance
-        
-            searchLim1 = round(flankerPkidx(1) - 1.5*d1); % make symmetrical and go back 20% further
-            searchLim2 = round(flankerPkidx(2) + 1.5*d2); % make other side symmetrical 
-        
-            lastPeak = find(isPeak,1,'last');
-            while lastPeak - closestLoc(2) > 2
-                lastPeak =lastPeak-2;
-            end
-            if closest_zero_idx(lastPeak) == flankerPkidx(2)
-                lastPeak = inf;
-            end
-            firstPeak = find(isPeak,1,'first');
-            while closestLoc(1) - firstPeak > 2
-                firstPeak =firstPeak+2;
-            end
-        
-            if closest_zero_idx(firstPeak) == flankerPkidx(1)
-                firstPeak = -inf;
-            end
-        
-            firstTrough = find(closest_zero_idx > searchLim1 & closest_zero_idx< flankerPkidx(1) & ~isPeak);
-            firstTrough = closest_zero_idx(firstTrough(firstTrough>firstPeak));
-            lastTrough = find(closest_zero_idx < searchLim2 & closest_zero_idx> flankerPkidx(2)& ~isPeak);
-            lastTrough =closest_zero_idx(lastTrough(lastTrough<lastPeak));
-            if length(firstTrough)~=1 | length(lastTrough)~=1
-                errCd = 'outside bounds not found';
-                toplot=1;
-            end
-            if toplot
-                clf
-                hold on
-                % fitted data plots
-                plot(timeSection,respSection,'LineWidth',3)
-                plot(timeSection,coeffs(timeSection)) % raw fit
-            
-                plot(t1,streams{idxRespiration}.time_series(cb),'b*','markersize',10,'LineWidth',3) % end of trial
-                plot(t0,streams{idxRespiration}.time_series(pb),'b*','markersize',10,'LineWidth',3)  % start of trial
-            
-                plot(timeSection(inhalPkidx),respSection(inhalPkidx),'color','#D95319','marker','+','linestyle','none','markersize',20,'LineWidth',3) % peaks during trial
-                plot(timeSection(flankerPkidx),respSection(flankerPkidx),'color','g','marker','+','linestyle','none','markersize',20,'LineWidth',3) % peaks during trial
-                plot(timeSection(troughIdx),respSection(troughIdx),'color','m','marker','+','linestyle','none','markersize',20,'LineWidth',3) % peaks during trial
-                plot(timeSection(lastTrough),respSection(lastTrough),'color','r','marker','+','linestyle','none','markersize',20,'LineWidth',3) % peaks during trial
-                plot(timeSection(firstTrough),respSection(firstTrough),'color','r','marker','+','linestyle','none','markersize',20,'LineWidth',3) % peaks during trial
-                waitforbuttonpress
-            end
-        catch
-            discardedTrials=discardedTrials+1;
-        end
-    end
-    discardedTrials
+    [discardedAttended(count), attendedI(count), attendedE(count), attenedCycle(count), attendedRate(count)]=calculateBreathCycles(pressedTime,timeSeries,streams,  idxRespiration, behTbl, attendedTrials,0);
+    [discardedDistracted(count), distractedI(count), distractedE(count), distractedCycle(count),distractedRate(count)]=calculateBreathCycles(pressedTime,timeSeries,streams,  idxRespiration, behTbl, distractedTrials,0);
+
+    totalAttended(count)=length(attendedTrials);
+    totalDistracted(count)=length(distractedTrials);
 end
 
+clc
+1
+%%
+keptDistracted = totalDistracted'-discardedDistracted';
+% 100*(discardedDistracted./totalDistracted)'
+keptAttended = totalAttended'-discardedAttended';
+% 100*(discardedAttended./totalAttended)'
+
+% removing any subs with <3 trials
+attendedI(keptAttended<3)=nan;
+attendedE(keptAttended<3)=nan;
+attenedCycle(keptAttended<3)=nan;
+
+distractedI(keptDistracted<3)=nan;
+distractedE(keptDistracted<3)=nan;
+distractedCycle(keptDistracted<3)=nan;
+
+[~,pI]=ttest(attendedI,distractedI)
+[~,pE]=ttest(attendedE,distractedE)
+[~,pBC]=ttest(attenedCycle,distractedCycle)
+% [~,pdiff]=ttest(attendedE-attendedI,distractedE - distractedI)
+% [~,pdiff]=ttest(attendedE+attendedI,distractedE + distractedI)
+
+breathTbl=table();
+breathTbl.attendedI = attendedI'; 
+breathTbl.attendedE = attendedE'; 
+breathTbl.attendedCycle = attenedCycle'; 
+breathTbl.distractedI = distractedI'; 
+breathTbl.distractedE = distractedE'; 
+breathTbl.distractedCycle = distractedCycle'; 
+
+% 
+% writetable(breathTbl,'A:\TwoTap\Manuscript\Figure\tempData4Sec.xlsx','sheet','breathData')
+%% Plotting breath Response
+
+breathTbl = readtable('A:\TwoTap\Manuscript\Figure\tempData4Sec.xlsx','sheet','breathData');
+dataMat = table2array(breathTbl);
+dataMat = dataMat(~any(isnan(dataMat),2),:);
+% avgdata = nanmean(dataMat,1);
+% data = [avgdata(4:6); avgdata(1:3)];
+% sem = nanstd(dataMat,[],1)./sqrt([16,16,16,12,12,12]);
+% sem = [sem(4:6);sem(1:3)];
+% close all
+% plotErrBar(data',sem',{'b','r'})
+
+% plot(meanWeight,'-o')
+subplot(2,3,[4,5])
+hold on
+allI = reshape(dataMat(:,[4,1]),[],1);
+allE = reshape(dataMat(:,[5,2]),[],1);
+netOrder =(repmat(reshape(repmat([1:2],[12],1),[],1),2,1));
+netOrder = categorical(arrayfun(@num2str, netOrder, 'UniformOutput', 0));
+bbb=boxchart(netOrder, [allI;allE],'GroupByColor',[ones(1,12*2), 2*ones(1,12*2)]','MarkerStyle','none')
+
+x = [ones(12,1)-0.25 + 0.1*(rand(12,1)-0.5) ones(12,1)+0.25 + 0.1*(rand(12,1)-0.5)];
+for tt=1:12
+    plot(x(tt,:),dataMat(tt,[4,1]),'ko-')
+end
+
+x = [2*ones(12,1)-0.25 + 0.1*(rand(12,1)-0.5) 2*ones(12,1)+0.25 + 0.1*(rand(12,1)-0.5)];
+for tt=1:12
+    plot(x(tt,:),dataMat(tt,[5,2]),'ko-')
+end
+set(gca,'XTickLabel',{'avg Inhalation','avg Exhalation'})
+ylabel('Seconds')
+
+
+subplot(2,3,6)
+hold on
+allBC = reshape(dataMat(:,[6,3]),[],1);
+netOrder =(repmat(reshape(repmat([1:1],[12],1),[],1),2,1));
+netOrder = categorical(arrayfun(@num2str, netOrder, 'UniformOutput', 0));
+bbb=boxchart(netOrder, [allBC],'GroupByColor',[ones(1,12*1),2*ones(1,12*1) ]','MarkerStyle','none')
+
+x = [ones(12,1)-0.25 + 0.1*(rand(12,1)-0.5) ones(12,1)+0.25 + 0.1*(rand(12,1)-0.5)];
+for tt=1:12
+    plot(x(tt,:),dataMat(tt,[6,3]),'ko-')
+end
+ylabel('Breath Cycle')
+legend({'Low Cons','High Cons'},'box','off')
+
+
+%%
+% close all
+% [asdf, avgI, avgE, avgBreathCycle]=calculateBreathCycles(pressedTime,timeSeries,streams,  idxRespiration, behTbl, distractedTrials,0)
+% calculateBreathCycles(pressedTime,timeSeries,streams,  idxRespiration, behTbl, attendedTrials)
 %% Phase anlaysis
-figure
-[~,loc]=min(abs(timeSeries'-pressedTime));
+% figure
 
-slowAngles=respirationPhase(loc(slowPresses));
-fastAngles=respirationPhase(loc(attendedPresses));
-
-[pval table] = circ_wwtest(fastAngles,slowAngles); % ttest between slow and fast angles
-avgFast = circ_mean(fastAngles');
-avgSlow = circ_mean(slowAngles');
-
-close all
+clc
+phaseP= circ_wwtest(avgFast,avgSlow) % ttest between slow and fast angles
+% close all
 % Define your vector of angles (in radians)
 % Set the radius of the circle
 radius = 1; % You can adjust this value as needed
 % Create a polar plot
-figure;
-polarplot(slowAngles, radius*ones(size(slowAngles)), 'bo'); % slow
+% figure;
+subplot(233)
+polarplot(avgSlow, radius*ones(size(avgSlow)), 'b*'); % slow
 hold on;
-polarplot(fastAngles, radius*ones(size(fastAngles)), 'ro'); % fast
-title('Angles of Slow and Attended Trials');
+polarplot(avgFast, radius*ones(size(avgFast)), 'r*'); % fast
+% title('Distracted and Attended Trials across Subjects');
 grid on;
 set(gca,'rticklabels','')
 rlim([0 1.01])
-legend('slow','fast')
+% legend('Low Cons','High Cons')
+
+%% Sample plots for Illustration
+
+
+id=9;
+rawFile = "A:\TwoTap\rawData\twotap"+string(id)+"\twotap"+string(id)+".xdf";
+behFile = pickfiles({"A:\TwoTap\rawData\twotap"+string(id)}, {"trial_summary.csv"});
+codeFile = pickfiles({"A:\TwoTap\rawData\twotap"+string(id)}, {".csv"},{".csv"},{'trial_summary','fixed_output'});
+behTbl = readtable(behFile);
+codeTbl = readtable(codeFile);
+if id==18
+    behTbl.ResponseTime(36) = 9450;
+end
+[behTbl, responseTbl]=fixTwoTapBehFile(behTbl,codeTbl); % Fixing behTbl
+% Behavior Variables
+med = median(behTbl.ResponseTime);
+singleBreath=med/2;
+madRT = mad(behTbl.ResponseTime,1);
+
+attendedPresses = behTbl.Accuracy==1 & behTbl.ResponseTime<med+madRT & behTbl.ResponseTime>med-madRT;
+slowPresses = behTbl.Accuracy==1 & behTbl.ResponseTime>med+madRT;
+
+% Calculating behavior trials
+streams = load_xdf(rawFile);
+for s=1:length(streams)
+    if strcmp(streams{s}.info.type,'RB')
+        idxRespiration = s;
+    elseif strcmp(streams{s}.info.type,'EEG')
+        idxEEG = s;
+    elseif strcmp(streams{s}.info.type,'Markers')
+        idxMarker = s;
+    end
+end
+% reading in data
+respiration=double(streams{idxRespiration}.time_series); % respiration is sampled at 10Hz
+rawRespiration =respiration; 
+timeSeries=streams{idxRespiration}.time_stamps; 
+
+markers=streams{idxMarker}.time_series;
+markersTime=streams{idxMarker}.time_stamps;
+
+filterLen = 10*ceil(median(behTbl.ResponseTime/8000))-1;
+respiration = highpass(respiration,0.04,10); % cutoff at 0.04Hz - lets in breaths <25 seconds
+respiration = movmean(respiration,5); % Very simple low pass filter
+respiration = sgolayfilt(respiration, 2, filterLen);  % Smooth the signal
+
+dydx = gradient(respiration(:)) ./ gradient(timeSeries(:)); % calculate derivitive
+dydx = lowpass(dydx,0.9,10); % lets in breaths > 2 sec
+
+% Getting Button presses
+pressesLoc = find(markers==11); % all button presses
+pressedTime=markersTime(pressesLoc);
+slowTimes = pressedTime(slowPresses);
+attendedTimes = pressedTime(attendedPresses);
+[sm,sl]=min(abs(timeSeries-slowTimes')');
+[am,al]=min(abs(timeSeries-attendedTimes')');
+
+%%% Phase Stuff 
+respirationPhase = angle(hilbert(respiration)); % calculate phase 
+[~,loc]=min(abs(timeSeries'-pressedTime));
+slowAngles=respirationPhase(loc(slowPresses));
+fastAngles=respirationPhase(loc(attendedPresses));
+avgFast(count) = circ_mean(fastAngles'); % save phase data
+avgSlow(count) = circ_mean(slowAngles'); % save phase data
+%%%
+
+%%
+close all
+figure
+subplot(2,3,[1,2])
+hold on
+plot(timeSeries,(rawRespiration),'k')
+plot(slowTimes,rawRespiration(sl),'b*')
+plot(attendedTimes,rawRespiration(al),'r*')
+ylabel('Respiration Signal')
+xlim([3247330 3247350])
+ax=gca();
+set(gca,'xtick',ax.XTick,'xticklabels',ax.XTick-ax.XTick(1))
+legend({'','Low Cons','High Cons'},'box','off')
+xlabel('Time (sec)')
+
+% subplot(312)
+% hold on
+% plot(timeSeries,movmean(dydx,1),'k')
+% plot(slowTimes,dydx(sl),'b*')
+% plot(attendedTimes,dydx(al),'r*')
+% plot(timeSeries,zeros(size(timeSeries)),'k--')
+% plot(timeSeries(zeroCross),dydx(zeroCross),'color','#D95319','marker','+','linestyle','none')
+% xlim([3.2473e+06 3.2473e+06+86])
+% ylabel('Derivative of respiration Signal')
+% 
+% subplot(212)
+% hold on
+% plot(timeSeries,(respirationPhase),'k')
+% plot(slowTimes,respirationPhase(sl),'b*')
+% plot(attendedTimes,respirationPhase(al),'r*')
+% ylabel('Phase (rad)')
+% xlabel('Time (sec)')
+% plot(timeSeries,zeros(size(timeSeries)),'k--')
+% xlim([3.2473e+06 3.2473e+06+86])
+% ax=gca();
+% set(gca,'xticklabels',ax.XTick-ax.XTick(1),'fontweight','bold','fontsize',12)
+% 
+
+
+
+%% Testing bimodal distribution of data
+
+gp1 = breathTbl.distractedCycle>2;
+gp2 = breathTbl.distractedCycle<2;
+
+
+[~,pBC1]=ttest(breathTbl.attendedCycle(gp1),breathTbl.distractedCycle(gp1))
+[~,pBC2]=ttest(breathTbl.attendedCycle(gp2),breathTbl.distractedCycle(gp2))
+
+[~,pBC1]=ttest(breathTbl.attendedCycle(gp1)-breathTbl.distractedCycle(gp1))
+[~,pBC2]=ttest(breathTbl.attendedCycle(gp2)-breathTbl.distractedCycle(gp2))
+
+[~,pBC2]=ttest(abs(breathTbl.attendedCycle-breathTbl.distractedCycle))
+
+[pBC2,~,stats]=signrank(breathTbl.attendedCycle,breathTbl.distractedCycle)
+
+clc
+[~,pI,~,statsI]=ttest(breathTbl.attendedI(gp1),breathTbl.distractedI(gp1))
+[~,pE,~,statsE]=ttest(breathTbl.attendedE(gp1),breathTbl.distractedE(gp1))
+
+
+
+
+
+%% 64 vs 24 channel validations
+
+load('C:\Users\jason\OneDrive\Desktop\MS Beng\Neatlabs\Respiration_EEG_Synchronization\collated\SourceValidation.mat')
+hm = headModel.loadFromFile('headModel_templateFile_newPEBplus.mat');
+T = hm.indices4Structure(hm.atlas.label);
+T = double(T)';
+P = sparse(bsxfun(@rdivide,T, sum(T,2)))';
+labelnames = {''};
+var = atanh(fisherZ);
+plot68roi(hm, T'*var',[0 2],labelnames);
+set(gcf,'Position',[985 611 390 523.3333]); 
+saveas(gcf,[savePath '\figS1_fisherZ_allScale.tiff']);
+%%
+var = alphas';
+plot68roi(hm, T'*var',[0 1],labelnames);
+set(gcf,'Position',[985 611 390 523.3333]); 
+saveas(gcf,[savePath '\figS1_zchronbach.tiff']);
+
+var = alphas2;
+plot68roi(hm, T'*var',[0 1],labelnames);
+set(gcf,'Position',[985 611 390 523.3333]); 
+saveas(gcf,[savePath '\figS1_chronbach2.tiff']);
+
+%% Plotting distribution of corr and chronbach alphas
+close all
+figure
+hold on
+validationPlot = atanh(fisherZ);
+x = repmat(1,68,1);
+boxchart(validationPlot,'MarkerStyle','none')
+swarmchart(x,validationPlot,50,'k.')
+% ylim([0 1])
+ylabel('Fisher Z')
+set(gca,'xticklabels',{ 'Spearmans'},'xticklabelrotation',45)
+set(gcf,'position',[1.1883e+03 1.1043e+03 140.0333 233.6667])
+
+saveas(gcf,[savePath '\figS1_fisherZbox.tiff']);
+
+%%
+rMat; % size 16 x 68
+close all
+for n=[1,3,4,2,5]
+    if n ==2 
+        subplot(2,3,[4,4.5])
+    elseif n ==5
+        subplot(2,3,[5.5,6])
+    elseif n==3
+        subplot(2,3,2)
+    elseif n==4
+        subplot(2,3,3)
+    else
+        subplot(2,3,n)
+    end
+    hold on
+    rois = netwrk(n).roi;
+    nROI = length(rois);
+    roiData = rMat(:,rois);
+    roiName = atlas.label(rois);
+
+    x = repmat(1:nROI,16,1);
+    boxchart(roiData,'markerstyle','none')
+    swarmchart(x,roiData,50,'k.')
+    ylim([0.8,1])
+    title(netwrk(n).name)
+    set(gca,'xticklabels',roiName,'xticklabelrotation',45,'fontsize',12)
+
+end
+
+%% pDMN low vs High in 16 subs
+close all
+figure
+hold on
+ROIsplot = 1E13*[allLow'; allHigh' ];
+
+netOrder = ones(1,32);
+netOrder = categorical(arrayfun(@num2str, netOrder, 'UniformOutput', 0));
+boxchart(netOrder', ROIsplot,'GroupByColor',[ones(1,16), 2*ones(1,16)],'MarkerStyle','none')
+
+% data=round(data,3);
+x = repmat(1,16,1)-0.25;
+x=reshape(x,[],1);
+swarmchart(x,1e13*allLow,50,'.','XJitterWidth',0.25,'MarkerEdgeColor',[0 0.4470 0.7410]);
+x = repmat(1,16,1)+0.25;
+x=reshape(x,[],1);
+swarmchart(x,1e13*allHigh,50,'.','XJitterWidth',0.25,'MarkerEdgeColor',[0.8500 0.3250 0.0980]);
+
+% ylabel('lPC')
+title('pDMN 16 Subs low high')
+
+
+
+

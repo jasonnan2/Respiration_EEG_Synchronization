@@ -65,16 +65,18 @@ age = behdata.age;
 % age(outl)=[];
 
 %% For network-based analyses
-netwrk(1).name = 'FPN'
+netwrk(1).name = 'FPN';
 netwrk(1).roi = [5,6,55,56,59,60];
-netwrk(2).name = 'CON'
+netwrk(2).name = 'CON';
 netwrk(2).roi = [3,4,19,20,37,38,39,40,41,42,57,58,67,68];
-netwrk(3).name = 'aDMN'
+netwrk(3).name = 'aDMN';
 netwrk(3).roi = [11,12,25,26,29,30,53,54];
-netwrk(4).name = 'pDMN'
+netwrk(4).name = 'pDMN';
 netwrk(4).roi = [15,16,21,22,51,52];
-netwrk(5).name = 'MTL-DMN'
+netwrk(5).name = 'MTL-DMN';
 netwrk(5).roi = [9,10,17,18,31,32,35,36,61,62,65,66];
+netwrk(6).name = 'Visual';
+netwrk(6).roi =[7 8 13 14 23 24 27 28 43 44];
 
 %% Fig 4A Mindfulness Correlation
 % organizing data into temporal epochs for analysis.
@@ -240,13 +242,11 @@ numGroups = 3; % Assuming groups are 0, 1, and 2
 
 % Initialize a cell array to store the results
 % anovaResults = cell(1, 68);
-data =  f(a).low_pre;
+data =  f(2).df_pre;
 % data=yp';
-% data = filloutliers(data,nan);
+data = filloutliers(data,nan,2);
 
-% data = filloutliers(data,nan);
 % data = f(a).nethi';
-% data = filloutliers(data,nan);
 groups = 1*tbl.mind2; 
 % groups(age>60)=nan;
 anovaResults=[];
@@ -263,10 +263,10 @@ for i = 1:size(data,1)
     anovaResults(i) = p;
     anovaTbl{i}=at;
 end
-clc
 
+clc
 atlas.label(find((anovaResults)<0.05))
-for n=1:5
+for n=1:6
     anovaResults(netwrk(n).roi) = fdr(anovaResults(netwrk(n).roi));
 end
 atlas.label(find((anovaResults)<0.05))
@@ -282,48 +282,77 @@ fitglm(tbl, 'dep3 ~ 1+ lpc + mind')
 % [b,dev,stats]=glmfit(data(51,:)',dep,'poisson')
 %% Precuneus anova
 groups = 1*tbl.mind2; 
+singleData  = f(2).df_pre(51,:);
+% singleData = filloutliers(singleData,nan);
+
 close all
-[p, at, stats] = anova1(f(2).high_pre(52,:), groups, 'on');
+[p, at, stats] = anova1(singleData, groups, 'on');
 xticklabels({'Low Mindfulness','High Mindfulness'})
 set(gca,'fontweight','bold','fontsize',12)
 title('rPC Attended','fontweight','bold')
 
+%% PLotting Anova as box plots
+groups = 1*tbl.mind2; 
+data =  f(2).high_pre(51,:);
 
-%% Precuneus over time
-clc
-MH = mind;
-group=1*tbl.mind2;
-lPC = squeeze(source_all_low(2,51,1:1000,:));
+goodSubs = ~isnan(groups) & ~isnan(data');
+groups = groups(goodSubs);
+data = data(goodSubs);
+catData = [data(groups==0) data(groups==1)];
+% close all
 
-count=0;
-winsize = 10;
-p=[];betas=[];
-for t=1:winsize:1000-winsize
-    count=count+1;
-    variableData = nanmean(lPC(t:t+winsize,:),1)';
-    % Run the one-way ANOVA
-%     [p(count), at, stats] = anova1(variableData, groups, 'off');
-
-    [b,~,stats]=glmfit(variableData, tbl.mind2);
-    p(count)=stats.p(2);
-    betas(count)=b(2);
-    % Store the results for the current variable
-%     anovaTbl{i}=at;
-end
-close all
-sigIdx = find(fdr(p)<0.05);
-
-tvect = linspace(-4000,0,length(betas)); 
-plot(tvect, betas,'linewidth',1.5)
+% subplot(4,4,[11,15]) % with line plots
+subplot(2,2,4)
 hold on
-plot(tvect(sigIdx), ones(size(sigIdx)), '*')
-title('L Precuneus','fontweight','bold')
-ylabel('glm Beta','fontweight','bold')
-xlabel('Time (sec)','fontweight','bold')
+netOrder = ones(size(catData));
+netOrder = categorical(arrayfun(@num2str, netOrder, 'UniformOutput', 0));
+boxchart(netOrder', catData,'GroupByColor',[ones(1,sum(groups==0)), 2*ones(1,sum(groups))],'MarkerStyle','none')
 
+% data=round(data,3);
+x = repmat(1,(sum(groups==0)),1)-0.25;
+x=reshape(x,[],1);
+swarmchart(x,[data(groups==0)],50,'.','XJitterWidth',0.4,'MarkerEdgeColor',[0 0.4470 0.7410]);
+x = repmat(1,(sum(groups)),1)+0.25;
+x=reshape(x,[],1);
+swarmchart(x,[data(groups==1)],50,'.','XJitterWidth',0.4,'MarkerEdgeColor',[0.8500 0.3250 0.0980]);
 
-%%
-[~,~,stats]=glmfit(data(51,:), mind)
+ylabel('lPC')
+title('high Cons')
+% legend({'Low Mindfulness','High Mindfulness'},'box','off')
+% Precuneus over time
+% clc
+% MH = mind;
+% tbl=table();
+% tbl.mind2 = 1*(mind>nanmedian(mind));
+% tbl.mind2(isnan(mind))=nan;
+% group=1*tbl.mind2;
+% lPC = squeeze(source_all_low(2,51,1:1000,:)-source_all_high(2,51,1:1000,:));
+% 
+% count=0;
+% winsize = 10;
+% p=[];betas=[];
+% for t=1:winsize:1000-winsize
+%     count=count+1;
+%     variableData = nanmean(lPC(t:t+winsize,:),1)';
+%     % Run the one-way ANOVA
+% %     [p(count), at, stats] = anova1(variableData, groups, 'off');
+% 
+%     [b,~,stats]=glmfit(variableData, tbl.mind2);
+%     p(count)=stats.p(2);
+%     betas(count)=b(2);
+%     % Store the results for the current variable
+% %     anovaTbl{i}=at;
+% end
+% % close all
+% subplot(4,4,[12,16])
+% sigIdx = find(fdr(p)<0.05);
+% tvect = linspace(-4000,0,length(betas)); 
+% plot(tvect, betas,'linewidth',1.5)
+% hold on
+% plot(tvect(sigIdx), ones(size(sigIdx)), '*')
+% % title('Distracted Trials','fontweight','bold')
+% ylabel('glm Beta','fontweight','bold')
+% xlabel('Time (sec)','fontweight','bold')
 
 %% Overlap between mindfulness and depression 
 

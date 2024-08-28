@@ -97,25 +97,70 @@ model = fitlm(data,mdlspec,'RobustOpts','on')
 %% 1D
 close all
 figure(4)
+subplot(131)
+hold on
+
 X=data.Consistency;
 Y=data.Age;
+plot(X, Y,'.','MarkerSize',8) % scatter 
 
+% Plot fitted line.
 badSubs=isnan(X) | isnan(Y);
 coefficients = polyfit(X(~badSubs), Y(~badSubs), 1);
 xFit = linspace(min(X), max(X), 1000);
 yFit = polyval(coefficients , xFit);
-hold on
-plot(X, Y,'.','MarkerSize',8)
-plot(xFit, yFit, 'r-', 'LineWidth', 1.5); % Plot fitted line.
+plot(xFit, yFit, 'r-', 'LineWidth', 1.5); 
+
+% plot for age <60
+youngX = X(age<60 &~isnan(age));
+youngY = Y(age<60 &~isnan(age));
+
+badSubs=isnan(youngX) | isnan(youngY);
+coefficients = polyfit(youngX(~badSubs), youngY(~badSubs), 1);
+xFit = linspace(min(youngX), max(youngX), 1000);
+yFit = polyval(coefficients , xFit);
+plot(xFit, yFit, 'k--', 'LineWidth', 1.5); % Plot fitted line.
+
+% plot for age>=60
+oldX = X(age>=60 &~isnan(age));
+oldY = Y(age>=60 &~isnan(age));
+badSubs=isnan(oldX) | isnan(oldY);
+coefficients = polyfit(oldX(~badSubs), oldY(~badSubs), 1);
+xFit = linspace(min(oldX), max(oldX), 1000);
+yFit = polyval(coefficients , xFit);
+plot(xFit, yFit, 'k--', 'LineWidth', 1.5); % Plot fitted line.
+
 ylabel('Age (years)','fontsize',12)
 xlabel('Interoceptive Consistency','fontsize',12)
-f=gcf;
-f.Position = [1000 918 560 420];
-exportgraphics(gcf, "A:\TwoTap\Manuscript\Figure\Fig1D.tif" )
-%% 1E
-close all
+% f=gcf;
+% f.Position = [1000 918 560 420];
+% exportgraphics(gcf, "A:\TwoTap\Manuscript\Figure\Fig1D_splitage.tif" )
 
-figure(5)
+
+% 1E Box Plots
+
+% data = readtable('A:\TwoTap\Manuscript\TwoTap_ms_finaldata_May29.xlsx');
+% X = data.Consistency;
+
+% close all
+subplot(132)
+
+hold on
+boxchart(1+(age>=60),X,'MarkerStyle','none')
+% boxplot(X,1+(age>=60))
+
+swarmchart(1+(age>=60),X,50,'k.')
+ylabel('Consistency','fontsize',12)
+set(gca,'xtick',[1,2],'xticklabels',{'age<60', 'age>60'},'xticklabelrotation',45)
+% f=gcf;
+% f.Position = [1000 918 560 420];
+% saveas(gcf,[savePath '\fig1E_boxchart.tiff']);
+% [~,p,stats] = ttest2(X(age<60), X(age>=60))
+% 1F
+% close all
+
+% figure(5)
+subplot(133)
 X=data.Consistency;
 Y=data.global_efficiency;
 
@@ -128,11 +173,27 @@ plot(X, Y,'.','MarkerSize',8)
 plot(xFit, yFit, 'r-', 'LineWidth', 1.5); % Plot fitted line.
 ylabel('Global Cognitive Efficiency','fontsize',12)
 xlabel('Interoceptive Consistency','fontsize',12)
+% f=gcf;
+% f.Position = [1000 918 560 420];
+% exportgraphics(gcf, "A:\TwoTap\Manuscript\Figure\Fig1E.tif" )
+
+%% Fig 1F single task
+figure(5)
+X=data.Consistency;
+Y=data.gw_efficiency_go;
+badSubs=isnan(X) | isnan(Y);
+coefficients = polyfit(X(~badSubs), Y(~badSubs), 1);
+xFit = linspace(min(X), max(X), 1000);
+yFit = polyval(coefficients , xFit);
+hold on
+plot(X, Y,'.','MarkerSize',8)
+plot(xFit, yFit, 'r-', 'LineWidth', 1.5); % Plot fitted line.
+ylabel('Inhibitory Control Eff.','fontsize',12)
+xlabel('Interoceptive Consistency','fontsize',12)
 f=gcf;
 f.Position = [1000 918 560 420];
-exportgraphics(gcf, "A:\TwoTap\Manuscript\Figure\Fig1E.tif" )
-
-%% Fig 1E-2
+exportgraphics(gcf, "A:\TwoTap\Manuscript\Figure\Fig1E_IC.tif" )
+%% Fig 1F-2
 
 figure(6)
 subplot(2,2,1)
@@ -187,7 +248,7 @@ plot(X, Y,'.','MarkerSize',8)
 plot(xFit, yFit, 'r-', 'LineWidth', 1.5); % Plot fitted line.
 ylabel('Interference Proc. Eff.','fontsize',12)
 xlabel('Interoceptive Consistency','fontsize',12)
-exportgraphics(gcf, "A:\TwoTap\Manuscript\Figure\Fig1E2.tif" )
+% exportgraphics(gcf, "A:\TwoTap\Manuscript\Figure\Fig1E2.tif" )
 
 
 

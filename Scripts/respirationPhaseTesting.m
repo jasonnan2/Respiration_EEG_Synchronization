@@ -16,15 +16,19 @@ eeglab
 subIds = [1,3,5,6,7,9,10,11,13,14,15,16,17,18,19,20];
 count=0;
 
-id=15
-rawFile = "A:\TwoTap\twotap"+string(id)+"\twotap"+string(id)+".xdf";
-behFile = pickfiles({"A:\TwoTap\twotap"+string(id)}, {"trial_summary.csv"});
-codeFile = pickfiles({"A:\TwoTap\twotap"+string(id)}, {".csv"},{".csv"},{'trial_summary','fixed_output'});
-
+id=3;
+rawFile = "A:\TwoTap\rawData\twotap"+string(id)+"\twotap"+string(id)+".xdf";
+behFile = pickfiles({"A:\TwoTap\rawData\twotap"+string(id)}, {"trial_summary.csv"});
+codeFile = pickfiles({"A:\TwoTap\rawData\twotap"+string(id)}, {".csv"},{".csv"},{'trial_summary','fixed_output'});
 behTbl = readtable(behFile);
 codeTbl = readtable(codeFile);
-streams = load_xdf(rawFile);
+if id==18
+    behTbl.ResponseTime(36) = 9450;
+end
+[behTbl, responseTbl]=fixTwoTapBehFile(behTbl,codeTbl); % Fixing behTbl
 
+
+streams = load_xdf(rawFile);
 for s=1:length(streams)
     if strcmp(streams{s}.info.type,'RB')
         idxRespiration = s;

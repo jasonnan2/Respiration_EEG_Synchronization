@@ -114,6 +114,7 @@ for a = 1:3
     f(a).high_pre=squeeze(nanmean(source_all_high(a,:,tw_pre(1):tw_pre(2),:),3));
     f(a).low_pre=squeeze(nanmean(source_all_low(a,:,tw_pre(1):tw_pre(2),:),3));
     f(a).df_pre=(f(a).low_pre-f(a).high_pre);
+    f(a).highRest_pre = f(a).high_pre-f(a).r;
     
     [~,p]=ttest(f(a).df_pre');
     f(a).dfp=p;
@@ -126,6 +127,11 @@ for a = 1:3
     [h,p]=ttest(f(a).low_pre');
     f(a).lowp=p;
     f(a).lowpc=fdr(p);
+
+    [h,p]=ttest(f(a).highRest_pre');
+    f(a).highRestp=p;
+    f(a).highRestpc=fdr(p);
+
     
     for b = 1:5
         f(a).netlotime(:,:,b)=squeeze(nanmean(source_all_low(a,netwrk(b).roi,:,:),2)); 
@@ -168,7 +174,7 @@ close all;
 clc;
 %% Save Variables
 
-T=table([f(2).netlo,f(2).nethi, f(2).netdf]);
+T=table([f(2).netlo,f(2).nethi, f(2).netdf f(2).netr]);
 writetable(T,[savePath '\tempData4Sec.xlsx'],'Sheet','networkData');
 
 T=table([nanmean(f(2).r,2)]);
@@ -181,25 +187,61 @@ data = [nanmean(f(2).netlo,1) ;nanmean(f(2).nethi,1)];
 sem = [nanstd(f(2).netlo) ;nanstd(f(2).nethi)]/sqrt(324);
 close all
 figure
-plotErrBar(data',sem',{'b','r'})
+
+subplot(121)
+hold on
+% plotErrBar(data',sem',{'b','r'})
+allLow = reshape(f(2).netlo,[],1);
+allHigh = reshape(f(2).nethi,[],1);
+allRest = reshape(f(2).netr,[],1);
+
+netOrder =(repmat(reshape(repmat([1:5],[324],1),[],1),3,1));
+netOrder = categorical(arrayfun(@num2str, netOrder, 'UniformOutput', 0));
+bbb=boxchart(netOrder, [allLow;allHigh; allRest],'GroupByColor',[ones(1,324*5), 2*ones(1,324*5), 3*ones(1,324*5)]','MarkerStyle','none')
+
+x = repmat(1:5,324,1)-.33;
+x=reshape(x,[],1);
+swarmchart(x,[allLow],20,'.','XJitterWidth',0.1,'MarkerEdgeColor',[0 0.4470 0.7410]);
+x = repmat(1:5,324,1);
+x=reshape(x,[],1);
+swarmchart(x,[allHigh],20,'.','XJitterWidth',0.1,'MarkerEdgeColor',[0.8500 0.3250 0.0980]);
+x = repmat(1:5,324,1)+0.33;
+x=reshape(x,[],1);
+swarmchart(x,[allRest],20,'.','XJitterWidth',0.1,'MarkerEdgeColor',[0.9290 0.6940 0.1250]);
+
+
+ylim([-0.0001 0.018])
+
 set(gca,'XTickLabel',{netwrk.name})
-legend('Distracted Trials','Attended Trials','box','off','location','northwest','fontweight','bold','fontsize',12)
-set(gca,'XGrid','off','YGrid','on','Position',[0.1300 0.1100 0.7750 0.8121])
-set(gcf,'position',[811 609 774 344.6667])
+
+legend('Low Cons','High Cons','Rest','box','off','location','northwest','fontsize',12,'box','off')
+% set(gca,'XGrid','off','YGrid','on','Position',[0.1300 0.1100 0.7750 0.8121])
+% set(gcf,'position',[811 609 774 344.6667])
 % saveas(gcf,'A:\TwoTap\Manuscript\Figure\fig3_network.tiff')
 
-%% Plot Network Difference
+% Plot Network Difference
 data = [nanmean(f(2).netdf,1) ];
 sem = [nanstd(f(2).netdf)]/sqrt(324);
-close all
-figure
-plotErrBar(data',sem',{'k'})
+% close all
+% figure
+
+
+%%% Difference box plots
+subplot(122)
+hold on
+% plotErrBar(data',sem',{'k'})
+
+x = repmat(1:5,324,1);
+boxchart(f(2).netdf,'MarkerStyle','none')
+swarmchart(x,f(2).netdf,10,'k.','XJitterWidth',0.2)
+
 set(gca,'XTickLabel',{netwrk.name})
-xlim([-.0 5.9])
-legend('Dist - Atten','box','off','location','northwest','fontweight','bold','fontsize',12)
-set(gca,'XGrid','off','YGrid','on','Position',[0.1300 0.1100 0.7750 0.8121])
-set(gcf,'position',[811 609 774 344.6667])
-saveas(gcf,'A:\TwoTap\Manuscript\Figure\fig3_networkdiff.tiff')
+ylim([-4E-3 12E-3])
+% xlim([-.0 5.9])
+% legend('Dist - Atten','box','off','location','northwest','fontweight','bold','fontsize',12)
+% set(gca,'XGrid','off','YGrid','on','Position',[0.1300 0.1100 0.7750 0.8121])
+% set(gcf,'position',[811 609 774 344.6667])
+% saveas(gcf,'A:\TwoTap\Manuscript\Figure\fig3_networkdiff.tiff')
 
 %% Fig 2A: brain activity for different contrasts/conditions
 close all;
@@ -243,19 +285,33 @@ T = double(T)';
 P = sparse(bsxfun(@rdivide,T, sum(T,2)))';
 labelnames = {''};
 var = nanmean(f(i).df_pre');
-var(f(i).rpc>0.05)=0;
+var(f(i).dfpc>0.05)=0;
 plot68roi(hm, T'*var',[-0.001 .001],labelnames);
 set(gcf,'Position',[985 611 390 523.3333]); 
 saveas(gcf,[savePath '\2Ddiff.tiff']);
+
+hm = headModel.loadFromFile('headModel_templateFile_newPEBplus.mat');
+T = hm.indices4Structure(hm.atlas.label);
+T = double(T)';
+P = sparse(bsxfun(@rdivide,T, sum(T,2)))';
+labelnames = {''};
+var = nanmean(f(i).highRest_pre');
+var(f(i).highRestpc>0.05)=0;
+plot68roi(hm, T'*var',[-0.001 .001],labelnames);
+set(gcf,'Position',[985 611 390 523.3333]); 
+saveas(gcf,[savePath '\2Dhighrestdf.tiff']);
+
 end
 %% Save Roi Data
 sfile=[savePath '\tempData4Sec.xlsx'];
 
 T=table();
-T.attended = nanmean(f(2).high_pre,2);
-T.distracted = nanmean(f(2).low_pre,2);
-T.df = nanmean(f(2).df_pre,2);
-writetable(T,sfile,'Sheet','ROIdata');
+T.attended = nanmean(f(2).high_pre,2)';
+T.distracted = nanmean(f(2).low_pre,2)';
+T.df = nanmean(f(2).df_pre,2)';
+T.rest = nanmean(f(2).r,2)';
+
+writetable(T,sfile,'Sheet','Subject_data');
 
 %% Fig 2C CV across the brain.
 clear CV*
@@ -316,9 +372,9 @@ a=2;
         [highrr(i),highrp(i)]=corr(x1(i,:)',x3(i,:)','Type','Spearman','Rows','pairwise');
         [highlowr(i),highlowp(i)]=corr(x2(i,:)',x3(i,:)','Type','Spearman','Rows','pairwise');
         
-%         [lowrr2(i)]=partialcorr(x1(i,:)',x2(i,:)',age,'Type','Spearman','Rows','pairwise');
-%         [highrr2(i)]=partialcorr(x1(i,:)',x3(i,:)',age,'Type','Spearman','Rows','pairwise');
-%         [highlowr2(i)]=partialcorr(x2(i,:)',x3(i,:)',age,'Type','Spearman','Rows','pairwise');
+        [lowrr2(i)]=partialcorr(x1(i,:)',x2(i,:)',age,'Type','Spearman','Rows','pairwise');
+        [highrr2(i)]=partialcorr(x1(i,:)',x3(i,:)',age,'Type','Spearman','Rows','pairwise');
+        [highlowr2(i)]=partialcorr(x2(i,:)',x3(i,:)',age,'Type','Spearman','Rows','pairwise');
         %
         lowrpc=fdr(lowrp);
         highrpc=fdr(highrp);
@@ -345,15 +401,32 @@ x = repmat(1:3,68,1);
 boxchart(ISCplot)
 swarmchart(x,ISCplot,50,'k.')
 ylabel('Fisher Z')
-set(gca,'xticklabels',{'Atten-Rest', 'Dist-Rest','Atten-Dist'},'fontweight','bold','fontsize',16,'xticklabelrotation',45)
-set(gcf,'position',[1.1883e+03 773 371.6667 565])
+set(gca,'xticklabels',{'Atten-Rest', 'Dist-Rest','Atten-Dist'},'xticklabelrotation',45)
+set(gcf,'position',[1.1883e+03 953 328.7000 385])
 saveas(gcf,[savePath '\2CISC.tiff']);
-
+    
 %%
-T=table(lowrr_alpha,highrr_alpha,highlowr_alpha);
+T=table(lowrr_alpha2,highrr_alpha2,highlowr_alpha2);
 sfile=[savePath '\tempData4Sec.xlsx'];
-writetable(T,sfile,'Sheet','ISC');
+writetable(T,sfile,'Sheet','ISC_age');
+%% Plotting roi by task
 
+var1 = nanmean(f(2).high_pre');
+var2 = nanmean(f(2).low_pre');
+var3 = nanmean(f(2).r');
+
+close all
+figure
+hold on
+ROIsplot = [var1' var2' var3'];
+ROIsplot=filloutliers(ROIsplot,nan,1);
+x = repmat(1:3,68,1);
+boxchart(ROIsplot,'markerstyle','none')
+swarmchart(x,ROIsplot,50,'k.')
+ylabel('Activity')
+set(gca,'xticklabels',{'Atten', 'Dist','rest'},'xticklabelrotation',45)
+set(gcf,'position',[1.1883e+03 953 328.7000 385])
+saveas(gcf,[savePath '\2Droi_outRMV.tiff']);
 
 %% Supp Fig 1: whole-brain correlation maps (data not used).
 %  if wb==1
