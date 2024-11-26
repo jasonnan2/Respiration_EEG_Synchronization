@@ -49,7 +49,7 @@ data.zfo = (zfo);
 zglobal = (data.global_efficiency - nanmean(data.global_efficiency))./nanstd(data.global_efficiency);
 data.zglobal = (zglobal);
 
-subsetData = data(data.Age>60,:);
+subsetData = data(data.Age<=60,:);
 
 %mdlspec = 'Consistency ~ Age + gender + ethnicity + sesscore + Mindfulness + Depression';
 mdlspec = 'zCon ~ zAge + gender + ethnicity + sesscore + Mindfulness + Depression';
@@ -102,6 +102,7 @@ hold on
 
 X=data.Consistency;
 Y=data.Age;
+age=data.Age;
 plot(X, Y,'.','MarkerSize',8) % scatter 
 
 % Plot fitted line.
@@ -192,7 +193,7 @@ ylabel('Inhibitory Control Eff.','fontsize',12)
 xlabel('Interoceptive Consistency','fontsize',12)
 f=gcf;
 f.Position = [1000 918 560 420];
-exportgraphics(gcf, "A:\TwoTap\Manuscript\Figure\Fig1E_IC.tif" )
+% exportgraphics(gcf, "A:\TwoTap\Manuscript\Figure\Fig1E_IC.tif" )
 %% Fig 1F-2
 
 figure(6)

@@ -413,15 +413,15 @@ sfile=[savePath '\tempData.xlsx'];
 
 ya = [aDMNnetlocorrm(:,6:7) aDMNnethicorrm(:,6:7) aDMNnetrestm(:,6:7)]; % FPN-CON corrs
 T=array2table(ya, 'VariableNames',{'dist_FPN','dist_CON','atten_FPN','atten_CON','rest_FPN','rest_CON'});
-writetable(T, sfile, 'sheet','aDMN_netConn')
+% writetable(T, sfile, 'sheet','aDMN_netConn')
 % mtlDMN
 ym = [mtDMNnetlocorrm(:,6:7) mtDMNnethicorrm(:,6:7) mtDMNnetlrestm(:,6:7)]; % FPN-CON corrs
 T=array2table(ym, 'VariableNames',{'dist_FPN','dist_CON','atten_FPN','atten_CON','rest_FPN','rest_CON'});
-writetable(T, sfile, 'sheet','mtlDMN_netConn')
+% writetable(T, sfile, 'sheet','mtlDMN_netConn')
 % pDMN
 yp = [pDMNnetlocorrm(:,6:7) pDMNnethicorrm(:,6:7) pDMNnetrestm(:,6:7)]; % FPN-CON corrs
 T=array2table(yp, 'VariableNames',{'dist_FPN','dist_CON','atten_FPN','atten_CON','rest_FPN','rest_CON'});
-writetable(T, sfile, 'sheet','pDMN_netConn')
+% writetable(T, sfile, 'sheet','pDMN_netConn')
 
 %% Fig 4 Grouped bar charts
 
@@ -532,7 +532,7 @@ x3= pDMNnetlocorrm(:,7);
 y3 = f(2).netlo(:,4);
 % y3=filloutliers(y3,nan);
 % x3=filloutliers(x3,nan);
-[Act_conn_corr2,Act_conn_corrp2]=corr(x3,y3,'Type','Spearman','Rows','pairwise')
+[Act_conn_corr2,Act_conn_corrp2m]=corr(x3,y3,'Type','Spearman','Rows','pairwise')
 
 % Create figure
 % figure1 = figure('Position',[1200 900 180 125]);
